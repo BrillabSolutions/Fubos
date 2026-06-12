@@ -1,0 +1,716 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Fubos Engine Sound - Unity Editor tool</title>
+  <meta name="description" content="Realistic engine sound synthesis from real recordings. No samples, no crossfades. A Unity Editor tool.">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --bg: #0a0809;
+      --bg2: #0f0c0e;
+      --card: rgba(255, 255, 255, 0.025);
+      --border: rgba(255, 255, 255, 0.08);
+      --text: #f0ebe6;
+      --dim: #978d8c;
+      --ember: #ff7b2e;
+      --ember2: #ffb35c;
+      --mono: 'JetBrains Mono', monospace;
+    }
+
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    html { scroll-behavior: smooth; }
+
+    body {
+      background: var(--bg);
+      color: var(--text);
+      font-family: 'Inter', system-ui, sans-serif;
+      font-size: 16.5px;
+      line-height: 1.7;
+      overflow-x: hidden;
+    }
+
+    ::selection { background: rgba(255, 123, 46, 0.35); }
+
+    h1, h2 { font-family: 'Space Grotesk', sans-serif; letter-spacing: -0.02em; }
+    a { color: var(--ember2); text-decoration: none; }
+    img { max-width: 100%; display: block; }
+
+    .wrap { max-width: 1060px; margin: 0 auto; padding: 0 28px; }
+
+    /* grain overlay */
+    body::after {
+      content: '';
+      position: fixed; inset: 0; z-index: 90; pointer-events: none;
+      background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2'/%3E%3C/filter%3E%3Crect width='160' height='160' filter='url(%23n)' opacity='0.5'/%3E%3C/svg%3E");
+      opacity: 0.035;
+    }
+
+    /* ===== nav ===== */
+    nav {
+      position: fixed; top: 0; left: 0; right: 0; z-index: 100;
+      transition: background 0.4s ease, border-color 0.4s ease, backdrop-filter 0.4s ease;
+      border-bottom: 1px solid transparent;
+    }
+    nav.scrolled {
+      background: rgba(10, 8, 9, 0.72);
+      backdrop-filter: blur(16px);
+      -webkit-backdrop-filter: blur(16px);
+      border-bottom-color: var(--border);
+    }
+    .nav-in {
+      display: flex; align-items: center; justify-content: space-between;
+      height: 66px;
+    }
+    .brand {
+      font-family: 'Space Grotesk', sans-serif; font-weight: 700; font-size: 1.05rem;
+      color: var(--text); display: flex; align-items: center; gap: 10px;
+    }
+    .brand .dot {
+      width: 9px; height: 9px; border-radius: 50%;
+      background: var(--ember);
+      box-shadow: 0 0 12px var(--ember);
+      animation: blink 2.4s ease-in-out infinite;
+    }
+    @keyframes blink { 0%,100% { opacity: 1; } 50% { opacity: 0.35; } }
+    .nav-links { display: flex; gap: 26px; font-size: 0.88rem; }
+    .nav-links a { color: var(--dim); transition: color 0.2s; }
+    .nav-links a:hover { color: var(--text); }
+    @media (max-width: 680px) { .nav-links { display: none; } }
+
+    /* ===== hero ===== */
+    .hero {
+      position: relative;
+      min-height: 94vh;
+      display: flex; flex-direction: column; justify-content: center;
+      overflow: hidden;
+    }
+    .hero-bg {
+      position: absolute; inset: 0;
+      overflow: hidden;
+    }
+    .hero-bg img {
+      width: 110%; height: 110%;
+      object-fit: cover;
+      opacity: 0.62;
+      filter: saturate(1.2) contrast(1.05) brightness(1.12);
+      animation: kenburns 26s ease-in-out infinite alternate;
+    }
+    @keyframes kenburns {
+      from { transform: scale(1) translate(0, 0); }
+      to   { transform: scale(1.1) translate(-2.5%, -2%); }
+    }
+    .hero-bg::after {
+      content: '';
+      position: absolute; inset: 0;
+      background:
+        linear-gradient(90deg, rgba(10,8,9,0.85) 0%, rgba(10,8,9,0.42) 45%, rgba(10,8,9,0.12) 100%),
+        linear-gradient(180deg, rgba(10,8,9,0.72) 0%, rgba(10,8,9,0.05) 35%, rgba(10,8,9,0.08) 70%, var(--bg) 100%);
+    }
+    #fan {
+      position: absolute; inset: 0; width: 100%; height: 100%;
+      pointer-events: none;
+    }
+    .hero-in { position: relative; z-index: 2; }
+    .hero h1 {
+      font-size: clamp(2.6rem, 7.5vw, 5rem);
+      font-weight: 700;
+      line-height: 1.04;
+      max-width: 12ch;
+    }
+    .hero h1 em {
+      font-style: normal;
+      background: linear-gradient(100deg, var(--ember) 10%, var(--ember2) 60%, #ffe3b0 95%);
+      -webkit-background-clip: text; background-clip: text; color: transparent;
+    }
+    .hero .sub {
+      margin-top: 26px;
+      font-size: clamp(1.05rem, 2vw, 1.3rem);
+      color: var(--dim);
+      max-width: 46ch;
+    }
+    .hero .actions { margin-top: 40px; display: flex; gap: 14px; flex-wrap: wrap; align-items: center; }
+
+    .btn {
+      position: relative;
+      display: inline-flex; align-items: center; gap: 10px;
+      padding: 14px 28px; border-radius: 12px;
+      font-weight: 600; font-size: 0.95rem;
+      transition: transform 0.2s ease, box-shadow 0.2s ease, border-color 0.2s ease;
+      overflow: hidden;
+    }
+    .btn:hover { text-decoration: none; transform: translateY(-2px); }
+    .btn-solid {
+      background: linear-gradient(120deg, #ff7b2e, #f2570f);
+      color: #1d0e02;
+      box-shadow: 0 10px 36px rgba(255, 123, 46, 0.28);
+    }
+    .btn-solid:hover { box-shadow: 0 16px 44px rgba(255, 123, 46, 0.42); }
+    .btn-solid::after {
+      content: '';
+      position: absolute; top: 0; left: -80%;
+      width: 50%; height: 100%;
+      background: linear-gradient(100deg, transparent, rgba(255,255,255,0.45), transparent);
+      transform: skewX(-20deg);
+      animation: sheen 4s ease-in-out infinite;
+    }
+    @keyframes sheen { 0%, 70% { left: -80%; } 100% { left: 180%; } }
+    .btn-line {
+      border: 1px solid var(--border);
+      color: var(--text);
+      background: rgba(255, 255, 255, 0.03);
+      backdrop-filter: blur(6px);
+    }
+    .btn-line:hover { border-color: rgba(255, 123, 46, 0.5); }
+
+    .chip {
+      display: inline-flex; align-items: center; gap: 10px;
+      font-family: var(--mono);
+      font-size: 0.78rem; letter-spacing: 0.16em;
+      color: var(--ember2);
+      padding: 9px 16px;
+      border: 1px solid rgba(255, 123, 46, 0.35);
+      border-radius: 999px;
+      background: rgba(255, 123, 46, 0.08);
+      margin-bottom: 28px;
+    }
+    .chip svg { width: 15px; height: 15px; fill: currentColor; }
+    .btn svg.ic { width: 17px; height: 17px; fill: currentColor; }
+
+    /* load-in animation */
+    .hero .fx { opacity: 0; transform: translateY(26px); animation: rise 0.9s cubic-bezier(0.2, 0.7, 0.2, 1) forwards; }
+    .hero .fx.d1 { animation-delay: 0.05s; }
+    .hero .fx.d2 { animation-delay: 0.18s; }
+    .hero .fx.d3 { animation-delay: 0.32s; }
+    @keyframes rise { to { opacity: 1; transform: none; } }
+
+    /* ===== ticker ===== */
+    .ticker {
+      border-top: 1px solid var(--border);
+      border-bottom: 1px solid var(--border);
+      overflow: hidden;
+      background: var(--bg2);
+      position: relative; z-index: 2;
+    }
+    .ticker-track {
+      display: flex; gap: 0; width: max-content;
+      animation: slide 36s linear infinite;
+    }
+    .ticker span {
+      font-family: var(--mono);
+      font-size: 0.76rem;
+      letter-spacing: 0.14em;
+      color: var(--dim);
+      padding: 13px 0;
+      white-space: nowrap;
+    }
+    .ticker span::after { content: '·'; margin: 0 26px; color: var(--ember); }
+    @keyframes slide { to { transform: translateX(-50%); } }
+
+    /* ===== sections ===== */
+    section { padding: 110px 0 0; }
+    .kicker {
+      font-family: var(--mono);
+      font-size: 0.75rem; letter-spacing: 0.18em;
+      color: var(--ember);
+      margin-bottom: 18px;
+    }
+    h2 { font-size: clamp(1.8rem, 4.5vw, 2.7rem); font-weight: 700; line-height: 1.15; margin-bottom: 22px; }
+    .lead { color: var(--dim); max-width: 60ch; margin-bottom: 14px; }
+    .lead.strong { color: var(--text); }
+    .lead code, .feat p code {
+      font-family: var(--mono); font-size: 0.85em;
+      background: rgba(255, 123, 46, 0.1);
+      border: 1px solid rgba(255, 123, 46, 0.2);
+      color: var(--ember2);
+      border-radius: 6px; padding: 1px 7px;
+    }
+
+    /* scroll reveal */
+    .reveal { opacity: 0; transform: translateY(34px); transition: opacity 0.8s ease, transform 0.8s cubic-bezier(0.2, 0.7, 0.2, 1); }
+    .reveal.in { opacity: 1; transform: none; }
+
+    /* ===== steps ===== */
+    .steps { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; margin-top: 48px; }
+    @media (max-width: 800px) { .steps { grid-template-columns: 1fr; } }
+    .step {
+      position: relative;
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      padding: 30px 28px;
+      background: var(--card);
+      transition: transform 0.25s ease, border-color 0.25s ease;
+    }
+    .step:hover { transform: translateY(-5px); border-color: rgba(255, 123, 46, 0.4); }
+    .step .n {
+      font-family: var(--mono); font-size: 0.75rem; letter-spacing: 0.16em;
+      color: var(--ember); margin-bottom: 14px;
+    }
+    .step h3 { font-family: 'Space Grotesk', sans-serif; font-size: 1.15rem; margin-bottom: 10px; }
+    .step p { color: var(--dim); font-size: 0.93rem; }
+
+    /* ===== media frames ===== */
+    .frame {
+      position: relative;
+      border-radius: 18px;
+      border: 1px solid var(--border);
+      overflow: hidden;
+      background: var(--bg2);
+      box-shadow: 0 30px 90px rgba(0, 0, 0, 0.55);
+    }
+    .frame .glowline {
+      position: absolute; top: 0; left: 10%; right: 10%; height: 1px;
+      background: linear-gradient(90deg, transparent, rgba(255, 123, 46, 0.7), transparent);
+    }
+    .frame-cap {
+      font-family: var(--mono); font-size: 0.78rem;
+      color: var(--dim);
+      margin-top: 14px;
+      display: flex; gap: 10px; align-items: baseline;
+    }
+    .frame-cap::before { content: '▸'; color: var(--ember); }
+    .crop-top { aspect-ratio: 1600 / 565; overflow: hidden; }
+    .crop-top img { width: 100%; height: 100%; object-fit: cover; object-position: top; }
+
+    .media-block { margin-top: 56px; }
+    .pipeline-tags {
+      display: grid; grid-template-columns: 1fr 1fr 1fr;
+      margin-top: 14px; gap: 12px;
+      font-family: var(--mono); font-size: 0.74rem; letter-spacing: 0.08em;
+      color: var(--dim); text-align: center;
+    }
+    .pipeline-tags b { display: block; color: var(--ember2); font-weight: 500; margin-bottom: 2px; }
+
+    /* ===== features (spotlight cards) ===== */
+    .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-top: 48px; }
+    .grid .feat:nth-child(odd):last-child { grid-column: 1 / -1; }
+    @media (max-width: 760px) { .grid { grid-template-columns: 1fr; } }
+    .feat {
+      position: relative;
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      padding: 30px 28px;
+      background: var(--card);
+      overflow: hidden;
+    }
+    .feat::before {
+      content: '';
+      position: absolute; inset: 0;
+      background: radial-gradient(420px circle at var(--mx, 50%) var(--my, 50%), rgba(255, 123, 46, 0.09), transparent 45%);
+      opacity: 0;
+      transition: opacity 0.35s ease;
+      pointer-events: none;
+    }
+    .feat:hover::before { opacity: 1; }
+    .feat .n {
+      font-family: var(--mono); font-size: 0.72rem; letter-spacing: 0.16em;
+      color: var(--ember);
+      margin-bottom: 14px;
+    }
+    .feat h3 { font-family: 'Space Grotesk', sans-serif; font-size: 1.12rem; margin-bottom: 9px; }
+    .feat p { color: var(--dim); font-size: 0.93rem; }
+
+    /* ===== code ===== */
+    .code-grid { display: grid; grid-template-columns: 0.9fr 1.1fr; gap: 48px; align-items: center; margin-top: 48px; }
+    @media (max-width: 860px) { .code-grid { grid-template-columns: 1fr; } }
+    .code-grid .talk p { color: var(--dim); margin-bottom: 16px; }
+    .code-grid .talk code {
+      font-family: var(--mono); font-size: 0.85em;
+      background: rgba(255, 123, 46, 0.1);
+      border: 1px solid rgba(255, 123, 46, 0.2);
+      color: var(--ember2);
+      border-radius: 6px; padding: 1px 7px;
+    }
+    .code-window {
+      position: relative;
+      background: #0d0a0c;
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      box-shadow: 0 30px 90px rgba(0, 0, 0, 0.55), 0 0 80px rgba(255, 123, 46, 0.05);
+    }
+    .code-head {
+      display: flex; align-items: center; gap: 7px;
+      padding: 14px 18px;
+      border-bottom: 1px solid var(--border);
+    }
+    .code-head i { width: 11px; height: 11px; border-radius: 50%; background: #3a3134; }
+    .code-head i:first-child { background: rgba(255, 123, 46, 0.55); }
+    .code-head span {
+      margin-left: auto;
+      font-family: var(--mono); font-size: 0.72rem; color: var(--dim);
+    }
+    pre {
+      padding: 24px;
+      overflow-x: auto;
+      font-family: var(--mono);
+      font-size: 0.8rem;
+      line-height: 1.75;
+    }
+    .tk { color: var(--ember); }
+    .tt { color: var(--ember2); }
+    .tm { color: #e8b4ff; }
+    .tc { color: #5d5356; }
+
+    /* ===== CTA ===== */
+    .cta {
+      margin: 130px 0 0;
+      position: relative;
+      border-top: 1px solid var(--border);
+      padding: 110px 0;
+      text-align: center;
+      overflow: hidden;
+    }
+    .cta::before {
+      content: '';
+      position: absolute; left: 50%; top: -40%;
+      width: 900px; height: 500px;
+      transform: translateX(-50%);
+      background: radial-gradient(ellipse, rgba(255, 123, 46, 0.13), transparent 65%);
+      pointer-events: none;
+    }
+    .cta h2 { margin-bottom: 14px; }
+    .cta p { color: var(--dim); margin-bottom: 36px; }
+    .cta .actions { display: flex; gap: 14px; justify-content: center; flex-wrap: wrap; }
+
+    footer {
+      border-top: 1px solid var(--border);
+      padding: 34px 0 44px;
+      font-size: 0.86rem;
+      color: var(--dim);
+      display: flex; justify-content: space-between; gap: 14px; flex-wrap: wrap;
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+      .hero .fx, .reveal { animation: none; opacity: 1; transform: none; transition: none; }
+      .ticker-track, .btn-solid::after, .brand .dot, .hero-bg img { animation: none; }
+    }
+  </style>
+</head>
+<body>
+
+  <nav id="nav">
+    <div class="wrap nav-in">
+      <span class="brand"><span class="dot"></span>Fubos</span>
+      <div class="nav-links">
+        <a href="#how">How it works</a>
+        <a href="#inside">What's inside</a>
+        <a href="#code">Code</a>
+        <a href="https://discord.gg/QNzcnZeHJw">Discord</a>
+        <a href="mailto:brillab.solutions@gmail.com">Email</a>
+      </div>
+    </div>
+  </nav>
+
+  <div class="hero">
+    <div class="hero-bg">
+      <img src="img/hero-spectrogram.jpg" alt="" aria-hidden="true">
+    </div>
+    <canvas id="fan"></canvas>
+    <div class="wrap hero-in">
+      <div class="chip fx d1">
+        <svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg" aria-hidden="true"><path d="m12.9288 4.2939 3.7997 2.1929c.1366.077.1415.2905 0 .3675l-4.515 2.6076a.4192.4192 0 0 1-.4246 0L7.274 6.8543c-.139-.0745-.1415-.293 0-.3675l3.7972-2.193V0L1.3758 5.5977V16.793l3.7177-2.1456v-4.3858c-.0025-.1565.1813-.2682.318-.1838l4.5148 2.6076a.4252.4252 0 0 1 .2136.3676v5.2127c.0025.1565-.1813.2682-.3179.1838l-3.7996-2.1929-3.7178 2.1457L12 24l9.6954-5.5977-3.7178-2.1457-3.7996 2.1929c-.1341.082-.3229-.0248-.3179-.1838V13.053c0-.1565.087-.2956.2136-.3676l4.5149-2.6076c.134-.0819.3228.0249.3178.1838v4.3858l3.7178 2.1456V5.5977L12.9288 0Z"/></svg>
+        UNITY EDITOR TOOL
+      </div>
+      <h1 class="fx d1">Fubos <em>Engine Sound</em></h1>
+      <p class="sub fx d2">Realistic engine sound synthesis from real recordings.<br>No samples, no crossfades - sound is generated in real time.</p>
+      <div class="actions fx d3">
+        <!-- TODO: ссылка на Asset Store после одобрения ассета -->
+        <a class="btn btn-solid" href="#">
+          <svg class="ic" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg" aria-hidden="true"><path d="m12.9288 4.2939 3.7997 2.1929c.1366.077.1415.2905 0 .3675l-4.515 2.6076a.4192.4192 0 0 1-.4246 0L7.274 6.8543c-.139-.0745-.1415-.293 0-.3675l3.7972-2.193V0L1.3758 5.5977V16.793l3.7177-2.1456v-4.3858c-.0025-.1565.1813-.2682.318-.1838l4.5148 2.6076a.4252.4252 0 0 1 .2136.3676v5.2127c.0025.1565-.1813.2682-.3179.1838l-3.7996-2.1929-3.7178 2.1457L12 24l9.6954-5.5977-3.7178-2.1457-3.7996 2.1929c-.1341.082-.3229-.0248-.3179-.1838V13.053c0-.1565.087-.2956.2136-.3676l4.5149-2.6076c.134-.0819.3228.0249.3178.1838v4.3858l3.7178 2.1456V5.5977L12.9288 0Z"/></svg>
+          Asset Store
+        </a>
+        <a class="btn btn-line" href="https://discord.gg/QNzcnZeHJw">Discord</a>
+      </div>
+    </div>
+  </div>
+
+  <div class="ticker">
+    <div class="ticker-track" id="ticker">
+      <span>ADDITIVE RESYNTHESIS</span><span>NO SAMPLES, NO CROSSFADES</span><span>BURST-COMPILED DSP</span><span>ZERO RUNTIME ALLOCATIONS</span><span>9 ENGINE PRESETS</span><span>2-STROKE / 4-STROKE</span><span>RPM + LOAD</span><span>.ENG ENGINE MAPS</span>
+    </div>
+  </div>
+
+  <section id="how">
+    <div class="wrap">
+      <div class="kicker reveal">HOW IT WORKS</div>
+      <h2 class="reveal">One recording in.<br>Any RPM out.</h2>
+      <p class="lead strong reveal">
+        While every other engine sound asset on Unity stitches together recorded samples,
+        Fubos takes a different path: it's the first engine sound synthesizer for Unity
+        built on additive resynthesis. Sound is generated in real time, with no samples
+        and no crossfades.
+      </p>
+      <p class="lead reveal">
+        An engine sound is a stack of harmonics. As RPM and load change, some of them get louder
+        and others fade - that balance is what makes every engine recognizable, and it is very
+        hard to fake from scratch.
+      </p>
+      <p class="lead reveal">
+        So Fubos doesn't fake it. You give the Analyzer a real recording - one smooth
+        acceleration from minimum to maximum RPM - and it tracks each harmonic across the
+        whole sweep into an <code>.eng</code> file. The synthesizer plays that profile back
+        in real time, reshaping the sound to match the current RPM and load. Every cycle is
+        unique, and transitions between RPMs stay smooth.
+      </p>
+
+      <div class="steps">
+        <div class="step reveal">
+          <div class="n">01 - RECORD</div>
+          <h3>Get a sweep</h3>
+          <p>Record it yourself or take a suitable video from YouTube. Two rules: smooth
+             acceleration from minimum to maximum RPM without gear shifts, and constant
+             distance between the engine and the mic.</p>
+        </div>
+        <div class="step reveal">
+          <div class="n">02 - ANALYZE</div>
+          <h3>Extract harmonics</h3>
+          <p>Load the WAV in the Analyzer, pick the harmonics on the spectrogram and export
+             an .eng engine map. The status bar shows the detected RPM range, so you can
+             check the selection against the real recording.</p>
+        </div>
+        <div class="step reveal">
+          <div class="n">03 - PLAY</div>
+          <h3>Drive it</h3>
+          <p>Feed the synthesizer two values at runtime: RPM from your own engine model, and
+             load - if you don't compute load explicitly, just feed the throttle value (0–1).</p>
+        </div>
+      </div>
+
+      <div class="media-block reveal">
+        <div class="frame">
+          <div class="glowline"></div>
+          <img src="img/pipeline-strip.jpg" alt="Three spectrograms: source recording, extracted harmonic map, synthesized output" loading="lazy">
+        </div>
+        <div class="pipeline-tags">
+          <span><b>SOURCE WAV</b>the recording</span>
+          <span><b>HARMONIC MAP</b>the .eng engine map</span>
+          <span><b>SYNTHESIZED</b>the reconstructed result</span>
+        </div>
+      </div>
+
+      <div class="media-block reveal">
+        <div class="frame crop-top">
+          <div class="glowline"></div>
+          <img src="img/synth-tab.jpg" alt="The Synth tab: source spectrogram, harmonic map and synthesized output side by side">
+        </div>
+        <div class="frame-cap">The Synth tab - preview the result and shape the tone before it goes in the game.</div>
+      </div>
+
+      <div class="media-block reveal">
+        <div class="frame">
+          <div class="glowline"></div>
+          <img src="img/analyzer.jpg" alt="The Analyzer: source spectrogram of an engine recording" loading="lazy">
+        </div>
+        <div class="frame-cap">The Analyzer - a loaded recording, harmonics ready to be picked.</div>
+      </div>
+    </div>
+  </section>
+
+  <section id="inside">
+    <div class="wrap">
+      <div class="kicker reveal">WHAT'S INSIDE</div>
+      <h2 class="reveal">What's in the package.</h2>
+
+      <div class="grid">
+        <div class="feat reveal">
+          <div class="n">ANALYZER</div>
+          <h3>Harmonic extraction</h3>
+          <p>Load a WAV, see its spectrogram, pick the harmonics. In manual mode you click the
+             clearest harmonic line, then the adjacent one - the spacing between them maps the
+             recording to engine RPM. Auto mode (experimental) works well on high-quality
+             recordings.</p>
+        </div>
+        <div class="feat reveal">
+          <div class="n">SYNTH TAB</div>
+          <h3>Preview &amp; simulator</h3>
+          <p>Listen before using: set RPM and load by hand, or turn on simulator mode -
+             a virtual gas pedal with idle RPM and response settings.</p>
+        </div>
+        <div class="feat reveal">
+          <div class="n">TONE</div>
+          <h3>Tone shaping</h3>
+          <p>Compression that evens out harmonic loudness, tilt EQ for the overall slope,
+             low-pass and high-pass bounds, plus experimental Stability and Room cleanup
+             for noisy or echoey recordings.</p>
+        </div>
+        <div class="feat reveal">
+          <div class="n">RANDOMIZATION</div>
+          <h3>No looped-recording feel</h3>
+          <p>Plain additive synthesis sounds like a looped recording or a buzz-saw. To avoid
+             that, every harmonic plays with small randomization in frequency and amplitude -
+             with separate layers for different frequency bands.</p>
+        </div>
+        <div class="feat reveal">
+          <div class="n">UNITY AUDIO</div>
+          <h3>Regular AudioSource</h3>
+          <p>The host GameObject needs an AudioSource - Unity uses it to play the rendered
+             samples and apply spatial settings, reverb and doppler. 2-stroke and 4-stroke
+             engines are supported, rotary is planned.</p>
+        </div>
+        <div class="feat reveal">
+          <div class="n">PERFORMANCE</div>
+          <h3>High-performance DSP</h3>
+          <p>Burst-compiled, vectorized math, zero runtime allocations.</p>
+        </div>
+        <div class="feat reveal">
+          <div class="n">IN THE BOX</div>
+          <h3>9 engine presets</h3>
+          <p>Ready-to-use profiles - Italian V6, Italian V12, Japan I4, Japan I6, V8 and more -
+             plus a demo scene with a simple car, and complete PDF documentation covering
+             every parameter with usage examples.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section id="code">
+    <div class="wrap">
+      <div class="kicker reveal">CODE</div>
+      <h2 class="reveal">The runtime is one call.</h2>
+
+      <div class="code-grid">
+        <div class="talk reveal">
+          <p><code>EngineSynth</code> takes the engine asset and renders audio on Unity's
+             audio thread. <code>Render()</code> must be called from
+             <code>OnAudioFilterRead</code>, and it needs three values:
+             <code>rpm</code>, <code>load</code> and <code>volume</code>.</p>
+          <p>The exported <code>.eng</code> file just needs to be dropped anywhere under
+             <code>Assets/</code> - it imports automatically, no manual setup.</p>
+          <p>A ready-to-use <code>EngineSound</code> wrapper ships with the package
+             in the sample scene.</p>
+        </div>
+        <div class="code-window reveal">
+          <div class="code-head"><i></i><i></i><i></i><span>EngineSoundExample.cs</span></div>
+          <pre><code><span class="tk">private</span> <span class="tt">EngineSynth</span> _synth;
+
+<span class="tk">private void</span> <span class="tm">Start</span>()
+{
+    _synth = <span class="tk">new</span> <span class="tt">EngineSynth</span>(profile);
+}
+
+<span class="tk">private void</span> <span class="tm">OnAudioFilterRead</span>(<span class="tk">float</span>[] data, <span class="tk">int</span> channels)
+{
+    <span class="tk">var</span> p = <span class="tk">new</span> <span class="tt">EngineSynthParams</span> {
+        rpm = _rpm, load = _load, volume = _volume
+    };
+    _synth.<span class="tm">Render</span>(data, channels, p);
+}
+
+<span class="tk">private void</span> <span class="tm">OnDestroy</span>()
+{
+    _synth?.<span class="tm">Dispose</span>();
+}</code></pre>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <div class="cta">
+    <div class="wrap">
+      <h2 class="reveal">Get Fubos Engine Sound.</h2>
+      <p class="reveal">Questions, feedback, or want to share what you've built? Join the Discord.</p>
+      <div class="actions reveal">
+        <!-- TODO: ссылка на Asset Store после одобрения ассета -->
+        <a class="btn btn-solid" href="#">
+          <svg class="ic" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg" aria-hidden="true"><path d="m12.9288 4.2939 3.7997 2.1929c.1366.077.1415.2905 0 .3675l-4.515 2.6076a.4192.4192 0 0 1-.4246 0L7.274 6.8543c-.139-.0745-.1415-.293 0-.3675l3.7972-2.193V0L1.3758 5.5977V16.793l3.7177-2.1456v-4.3858c-.0025-.1565.1813-.2682.318-.1838l4.5148 2.6076a.4252.4252 0 0 1 .2136.3676v5.2127c.0025.1565-.1813.2682-.3179.1838l-3.7996-2.1929-3.7178 2.1457L12 24l9.6954-5.5977-3.7178-2.1457-3.7996 2.1929c-.1341.082-.3229-.0248-.3179-.1838V13.053c0-.1565.087-.2956.2136-.3676l4.5149-2.6076c.134-.0819.3228.0249.3178.1838v4.3858l3.7178 2.1456V5.5977L12.9288 0Z"/></svg>
+          Asset Store
+        </a>
+        <a class="btn btn-line" href="https://discord.gg/QNzcnZeHJw">Join the Discord</a>
+      </div>
+    </div>
+  </div>
+
+  <div class="wrap">
+    <footer>
+      <span>© 2026 Fubos - one person making audio tools for Unity.</span>
+      <span><a href="https://discord.gg/QNzcnZeHJw">Discord</a> · <a href="mailto:brillab.solutions@gmail.com">brillab.solutions@gmail.com</a></span>
+    </footer>
+  </div>
+
+  <script>
+    /* ---------- harmonic fan: animated like the Harmonic Map (x: RPM, y: frequency) ---------- */
+    (function () {
+      const canvas = document.getElementById('fan');
+      const ctx = canvas.getContext('2d');
+      const reduced = matchMedia('(prefers-reduced-motion: reduce)').matches;
+      let W, H, dpr;
+
+      function resize() {
+        dpr = Math.min(devicePixelRatio || 1, 2);
+        W = canvas.clientWidth; H = canvas.clientHeight;
+        canvas.width = W * dpr; canvas.height = H * dpr;
+        ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+      }
+      resize();
+      addEventListener('resize', resize);
+
+      const LINES = 34;
+      let t = 0;
+
+      function heat(i, a) {
+        // magma palette: low harmonics hot yellow-white, high harmonics deep ember/purple
+        const x = i / (LINES - 1);
+        const r = Math.round(255 - 90 * x);
+        const g = Math.round(200 - 165 * x);
+        const b = Math.round(120 - 60 * x + 70 * x * x);
+        return `rgba(${r},${g},${b},${a})`;
+      }
+
+      function frame() {
+        t += 0.016;
+        ctx.clearRect(0, 0, W, H);
+        ctx.globalCompositeOperation = 'lighter';
+
+        const ox = -W * 0.04, oy = H * 1.12;
+
+        for (let i = 0; i < LINES; i++) {
+          const slope = ((i + 1) / LINES) * 1.25;
+          const flick = 0.6 + 0.4 * Math.sin(t * (0.9 + i * 0.11) + i * 2.1);
+          const a = (0.08 + 0.17 * (1 - i / LINES)) * flick;
+
+          const x2 = W * 1.02, y2 = oy - (x2 - ox) * slope;
+          const g = ctx.createLinearGradient(ox, oy, x2, y2);
+          g.addColorStop(0, heat(i, a * 0.35));
+          g.addColorStop(0.3, heat(i, a * 0.75));
+          g.addColorStop(1, heat(i, a));
+          ctx.strokeStyle = g;
+          ctx.lineWidth = i < 5 ? 2.2 : 1.3;
+          ctx.beginPath();
+          ctx.moveTo(ox, oy);
+          ctx.lineTo(x2, y2);
+          ctx.stroke();
+        }
+
+        if (!reduced) requestAnimationFrame(frame);
+      }
+      frame();
+    })();
+
+    /* ---------- nav background on scroll ---------- */
+    const nav = document.getElementById('nav');
+    addEventListener('scroll', () => nav.classList.toggle('scrolled', scrollY > 30), { passive: true });
+
+    /* ---------- scroll reveal ---------- */
+    const io = new IntersectionObserver(entries => {
+      for (const e of entries) if (e.isIntersecting) { e.target.classList.add('in'); io.unobserve(e.target); }
+    }, { threshold: 0.12, rootMargin: '0px 0px -8% 0px' });
+    document.querySelectorAll('.reveal').forEach(el => io.observe(el));
+
+    /* ---------- ticker: duplicate content for a seamless loop ---------- */
+    const track = document.getElementById('ticker');
+    track.innerHTML += track.innerHTML;
+
+    /* ---------- spotlight on feature cards ---------- */
+    document.querySelectorAll('.feat').forEach(card => {
+      card.addEventListener('pointermove', e => {
+        const r = card.getBoundingClientRect();
+        card.style.setProperty('--mx', (e.clientX - r.left) + 'px');
+        card.style.setProperty('--my', (e.clientY - r.top) + 'px');
+      });
+    });
+  </script>
+</body>
+</html>
